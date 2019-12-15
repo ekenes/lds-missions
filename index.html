@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no"/>
+    <title>LDS missions</title>
+
+    <style>
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        padding: 0;
+        margin: 0;
+      }
+
+      #applicationDiv {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+
+      #viewDiv {
+        width: 100%;
+        height: 100%;
+        flex: 1 1 auto;
+        order: 1;
+      }
+
+      #titleDiv {
+        font-weight: 400;
+        font-style: normal;
+        font-size: 1.2019rem;
+        padding: 10px;
+      }
+
+      #sliderContainer {
+        flex: 0 0 80px;
+        order: 2;
+
+        display: flex;
+        flex-flow: row;
+
+        padding: 0 12px;
+      }
+
+      #sliderValue {
+        flex: 0 0 100px;
+        order: 1;
+
+        display: flex;
+        justify-content: center;
+        flex-direction: column;
+        text-align: center;
+
+        font-size: 300%;
+      }
+
+      #sliderInnerContainer {
+        flex: 1 1 auto;
+        order: 2;
+
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        padding: 0 20px;
+      }
+
+      #slider {
+        width: 100%;
+      }
+      /**
+      * Play/Stop toggle button
+      */
+
+      #playButton {
+        flex: 0 0 100px;
+        order: 3;
+
+        margin: 20px 0;
+      }
+
+      .toggle-button {
+        display: flex;
+      }
+
+      .toggle-button.toggled .toggle-button-icon {
+        color: #cc1b1b;
+      }
+
+      .toggle-button .toggle-button-icon {
+        color: #1bcc1b;
+      }
+
+      .toggle-button > :nth-child(2) {
+        display: none;
+      }
+
+      .toggle-button.toggled > :nth-child(1) {
+        display: none;
+      }
+
+      .toggle-button.toggled > :nth-child(2) {
+        display: block;
+      }
+    </style>
+
+    <link rel="stylesheet" href="https://js.arcgis.com/4.13/esri/themes/light/main.css"/>
+    <script src="https://js.arcgis.com/4.13/"></script>
+
+    <script>
+      require([
+        "esri/Map",
+        "esri/layers/FeatureLayer",
+        "esri/views/MapView",
+        "esri/widgets/Legend",
+        "esri/widgets/Expand",
+        "esri/widgets/Home",
+        "esri/widgets/Slider"
+      ], function(Map, FeatureLayer, MapView, Legend, Expand, Home, Slider) {
+
+        const itemId = "36332222d9ea4a04b0cbf18e509f2da6";
+
+        const renderer = {
+          type: "simple",
+          symbol: {
+            type: "simple-fill",
+            color: "orange",
+            outline: {
+              color: "white"
+            }
+          }
+        };
+
+        const layer = new FeatureLayer({
+          portalItem: {
+            id: itemId
+          },
+          // renderer: renderer
+        });
+
+        const map = new Map({
+          basemap: {
+            portalItem: {
+              id: "3582b744bba84668b52a16b0b6942544"
+            }
+          },
+          layers: [ layer ]
+        });
+
+        const view = new MapView({
+          container: "viewDiv",
+          center: [0, 0],
+          zoom: 1,
+          map: map
+        });
+
+        let layerView;
+
+        view.whenLayerView(layer).then(function(lv){
+          layerView = lv;
+
+          // Starts the application by visualizing year 1830
+          setYear(1830);
+        });
+
+        function updateLayerFilter(year){
+          layerView.filter = {
+            where: `year <= ${year}`
+          }
+        }
+
+
+
+        //--------------------------------------------------------------------------
+        //
+        //  Setup UI
+        //
+        //--------------------------------------------------------------------------
+
+        var applicationDiv = document.getElementById("applicationDiv");
+        var sliderValue = document.getElementById("sliderValue");
+        var playButton = document.getElementById("playButton");
+        var titleDiv = document.getElementById("titleDiv");
+        var animation = null;
+
+        var slider = new Slider({
+          container: "slider",
+          min: 1830,
+          max: 2019,
+          values: [1830],
+          step: 1,
+          rangeLabelsVisible: true
+        });
+
+        // When user drags the slider:
+        //  - stops the animation
+        //  - set the visualized year to the slider one.
+        function inputHandler(event) {
+          stopAnimation();
+          setYear(event.value);
+        }
+        slider.on("thumb-drag", inputHandler);
+
+        // Toggle animation on/off when user
+        // clicks on the play button
+        playButton.addEventListener("click", function() {
+          if (playButton.classList.contains("toggled")) {
+            stopAnimation();
+          } else {
+            startAnimation();
+          }
+        });
+
+        view.ui.empty("top-left");
+        view.ui.add(titleDiv, "top-left");
+        view.ui.add(
+          new Home({
+            view: view
+          }),
+          "top-left"
+        );
+        view.ui.add(
+          new Legend({
+            view: view
+          }),
+          "bottom-left"
+        );
+
+
+        //--------------------------------------------------------------------------
+        //
+        //  Methods
+        //
+        //--------------------------------------------------------------------------
+
+        /**
+         * Sets the current visualized construction year.
+         */
+        function setYear(value) {
+          sliderValue.innerHTML = Math.floor(value);
+          slider.viewModel.setValue(0, value);
+
+          // update filter here
+          updateLayerFilter(value);
+        }
+
+
+        /**
+         * Starts the animation that cycle
+         * through the construction years.
+         */
+         function startAnimation() {
+          stopAnimation();
+          animation = animate(slider.values[0]);
+          playButton.classList.add("toggled");
+        }
+
+        /**
+         * Stops the animations
+         */
+        function stopAnimation() {
+          if (!animation) {
+            return;
+          }
+
+          animation.remove();
+          animation = null;
+          playButton.classList.remove("toggled");
+        }
+
+        /**
+         * Animates the color visual variable continously
+         */
+        function animate(startValue) {
+          var animating = true;
+          var value = startValue;
+
+          var frame = function(timestamp) {
+            if (!animating) {
+              return;
+            }
+
+            value += 0.5;
+            if (value > 2018) {
+              // value = 1830;
+              stopAnimation();
+            }
+
+            setYear(value);
+
+            // Update at 30fps
+            setTimeout(function() {
+              requestAnimationFrame(frame);
+            }, 1000 / 30);
+          };
+
+          frame();
+
+          return {
+            remove: function() {
+              animating = false;
+            }
+          };
+        }
+      });
+    </script>
+  </head>
+
+  <body>
+    <div id="applicationDiv">
+      <div id="viewDiv">
+        <div id="titleDiv" class="esri-widget">First year LDS missionaries entered each country</div>
+      </div>
+      <div id="sliderContainer" class="esri-widget">
+        <span id="sliderValue"></span>
+        <div id="sliderInnerContainer">
+          <div id="slider"></div>
+        </div>
+        <div
+          id="playButton"
+          class="esri-widget esri-widget--button toggle-button"
+        >
+          <div>
+            <span
+              class="toggle-button-icon esri-icon-play"
+              aria-label="play icon"
+            ></span>
+            Play
+          </div>
+          <div>
+            <span
+              class="toggle-button-icon esri-icon-pause"
+              aria-label="pause icon"
+            ></span>
+            Pause
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
