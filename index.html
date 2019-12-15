@@ -224,8 +224,11 @@
           "top-left"
         );
         view.ui.add(
-          new Legend({
-            view: view
+          new Expand({
+            view: view,
+            content: new Legend({
+              view: view
+            })
           }),
           "bottom-left"
         );
